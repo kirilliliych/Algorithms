@@ -1,0 +1,251 @@
+#include <assert.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#include <assert.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
+
+const int STACK_MIN_CAPACITY        = 4;
+const int RESIZE_BIGGER_MULTIPLIER  = 2;
+const int RESIZE_SMALLER_DIVISOR    = 4;
+const int DIGITS_PLUS_LETTERS       = 62;                                                               // '0'-'9' - 10, 'A'-'Z' - 26, 'a'-'z' - 26
+    
+struct stack
+{
+    int capacity;
+    int size;
+    size_t elem_size;
+    void *data;
+};
+
+struct stack *stack_new(size_t elem_size);
+
+int stack_push(struct stack *st, const void *elem);
+
+int stack_pop(struct stack *st, void *elem);
+
+int stack_top(struct stack *st, void *elem);
+
+int stack_empty(struct stack const *st);
+
+struct stack *stack_delete(struct stack *st);
+
+void stack_print(struct stack const *st, void(*pf)(void const *st));
+
+static int stack_resize_bigger(struct stack *st);
+
+static void stack_resize_smaller(struct stack *st);
+
+static int get_symbol_index(char symbol);
+
+static void get_subsets(int *quantity_array, char *set_string, char cur_symbol, int set_string_len);
+
+int main()
+{
+    struct stack *stk = stack_new(sizeof(char));
+    int *symbols_quantity = (int *) calloc(DIGITS_PLUS_LETTERS, sizeof(int));                   // '0'-'9' then 'A'-'Z' then 'a'-'z'
+    
+    char new_symbol = 0;
+    while ((new_symbol = getchar()) != '\n')
+    {
+        stack_push(stk, &new_symbol);
+        ++symbols_quantity[get_symbol_index(new_symbol)];
+    }
+
+    char *set_string = (char *) calloc(stk->size, sizeof(char));
+    get_subsets(symbols_quantity, set_string, '0', 0);
+
+    free(set_string);
+    free(symbols_quantity);
+    stk = stack_delete(stk);
+
+    return 0;
+}
+
+
+struct stack *stack_new(size_t elem_size)
+{
+    assert(elem_size > 0);
+
+    struct stack *st = (struct stack *) calloc(1, sizeof(struct stack));
+
+    st->capacity = 0;
+    st->size = 0;
+    st->elem_size = elem_size;
+    st->data = NULL;
+
+    return st;
+}
+
+int stack_push(struct stack *st, const void *elem)
+{
+    assert(st != NULL);
+    assert(elem != NULL);
+
+    if (st->size == st->capacity)
+    {
+        if (stack_resize_bigger(st))
+        {
+            return 1;
+        }   
+    }
+
+    memcpy(st->data + st->elem_size * st->size, elem, st->elem_size);
+    ++st->size;
+
+    return 0;
+}
+
+int stack_pop(struct stack *st, void *elem)
+{
+    assert(st != NULL);
+
+    if (st->size == 0)
+    {
+        return 1;
+    }
+
+    stack_resize_smaller(st);
+
+    --st->size;
+    memcpy(elem, st->data + st->size, st->elem_size);
+
+    return 0;
+}
+
+int stack_top(struct stack *st, void *elem)
+{
+    assert(st != NULL);
+
+    if (st->size == 0)
+    {
+        return 1;
+    }
+
+    memcpy(elem, st->data + st->size - 1, st->elem_size);
+
+    return 0;
+}
+
+int stack_empty(struct stack const *st)
+{
+    assert(st != NULL);
+
+    return st->size == 0;
+}
+
+struct stack *stack_delete(struct stack *st)
+{
+    assert(st != NULL);
+
+    free(st->data);
+    free(st);
+    return NULL;
+}
+
+void stack_print(struct stack const *st, void(*pf)(void const *st))
+{
+    assert(st != NULL);
+    assert(pf != NULL);
+
+    printf("[");
+
+    for (int elem_index = 0; elem_index < st->size; ++elem_index)
+    {
+        pf(st->data + elem_index * st->elem_size);
+
+        if (elem_index < st->size - 1)
+        {
+            printf(", ");
+        }
+    }
+
+    printf("]\n");
+}
+
+static int stack_resize_bigger(struct stack *st)
+{
+    assert(st != NULL);
+
+    if (st->capacity == 0)
+    {
+        void *new_memory = calloc(STACK_MIN_CAPACITY, st->elem_size);
+        if (new_memory == NULL)
+        {
+            return 1;
+        }
+
+        st->data = new_memory;
+        st->capacity = STACK_MIN_CAPACITY;
+    }
+
+    void *new_memory = realloc(st->data, st->capacity * RESIZE_BIGGER_MULTIPLIER * st->elem_size);
+    if (new_memory == NULL)
+    {
+        return 1;
+    } 
+
+    st->data = new_memory;
+    st->capacity = st->capacity * RESIZE_BIGGER_MULTIPLIER;
+
+    return 0;
+}
+
+static void stack_resize_smaller(struct stack *st)
+{
+    assert(st != NULL);
+
+    if ((st->size * RESIZE_SMALLER_DIVISOR <= st->capacity) && (st->capacity > STACK_MIN_CAPACITY))
+    {
+        st->data = (int *) realloc(st->data, st->capacity / RESIZE_SMALLER_DIVISOR * st->elem_size);
+        st->capacity /= RESIZE_SMALLER_DIVISOR;
+    }
+}
+
+static int get_symbol_index(char symbol)
+{
+    if (('A' <= symbol) && (symbol <= 'Z'))
+    {
+        return symbol - 'A' + 10;                                                                      // 10 = '9' - '0' + 1 
+    }
+    else if (('a' <= symbol) && (symbol <= 'z'))
+    {
+        return symbol - 'a' + 36;                                                                      // 36 = '9' - '0' + 'Z' - 'A' + 1
+    }
+
+    return symbol - '0';
+}
+
+static void get_subsets(int *quantity_array, char *set_string, char cur_symbol, int set_string_len)
+{
+    assert(quantity_array != NULL);
+    assert(set_string != NULL);
+
+    if (('9' < cur_symbol) && (cur_symbol < 'A'))
+    {
+        cur_symbol = 'A';
+    }
+    else if (('Z' < cur_symbol) && (cur_symbol < 'a'))
+    {
+        cur_symbol = 'a';
+    }
+    else if (cur_symbol > 'z')
+    {
+        printf("%s\n", set_string);
+        return;
+    }
+
+    get_subsets(quantity_array, set_string, cur_symbol + 1, set_string_len);
+
+    int cur_symbol_quantity = quantity_array[get_symbol_index(cur_symbol)];
+    for (int symbols_to_put = 0; symbols_to_put < cur_symbol_quantity; ++symbols_to_put)
+    {
+        set_string[set_string_len] = cur_symbol;
+        ++set_string_len;
+        get_subsets(quantity_array, set_string, cur_symbol + 1, set_string_len);
+    }
+
+    memset(set_string + set_string_len - cur_symbol_quantity, 0, cur_symbol_quantity);
+}
