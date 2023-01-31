@@ -1,4 +1,4 @@
 # Algorithms
 
 ***
-Some algorithms tasks gathered together.
+Some algorithms tasks put together.
